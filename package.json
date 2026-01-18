@@ -1,0 +1,28 @@
+{
+  "name": "a2a-mcp",
+  "version": "0.1.0",
+  "description": "PR Review Swarm Demo - A2A + MCP integration",
+  "type": "module",
+  "scripts": {
+    "tool-server": "bun run src/tool-server/index.ts",
+    "security-agent": "bun run src/agents/security/index.ts",
+    "style-agent": "bun run src/agents/style/index.ts",
+    "tests-agent": "bun run src/agents/tests/index.ts",
+    "orchestrator": "bun run src/orchestrator/index.ts",
+    "dev": "bun run scripts/start-all.ts",
+    "test": "bun test",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --write ."
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.11",
+    "@types/bun": "latest",
+    "typescript": "^5.3.0"
+  }
+}
