@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 /**
  * Orchestrator CLI - Discovers agents, invokes skills, merges findings
  *

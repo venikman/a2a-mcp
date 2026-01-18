@@ -94,13 +94,9 @@ export abstract class BaseAgent {
 
   /**
    * Handle JSON-RPC invoke request
+   * Note: skill ID validation is done in handleRpcRequest before this is called
    */
   async handleInvoke(params: InvokeParams): Promise<ReviewResult> {
-    // Verify skill ID matches
-    if (params.skill !== this.skillId) {
-      throw new Error(`Unknown skill: ${params.skill}. This agent supports: ${this.skillId}`);
-    }
-
     const findings = await this.analyze(params.input);
     return { findings };
   }
@@ -177,9 +173,17 @@ export abstract class BaseAgent {
       });
     }
 
+    // Check skill ID BEFORE execution (returns -32602, not -32603)
+    const params = paramsParsed.data;
+    if (params.skill !== this.skillId) {
+      return jsonRpcErrors.invalidParams(id, {
+        message: `Unknown skill: ${params.skill}. This agent supports: ${this.skillId}`,
+      });
+    }
+
     // Execute the skill
     try {
-      const result = await this.handleInvoke(paramsParsed.data);
+      const result = await this.handleInvoke(params);
       return jsonRpcSuccess(id, result);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Internal error";
@@ -192,17 +196,25 @@ export abstract class BaseAgent {
 // Tool Server Client (for agents to call tools)
 // =============================================================================
 
+const TOOL_TIMEOUT_MS = 3000;
+
 export async function callTool(
   mcpUrl: string,
   toolName: string,
   args: Record<string, unknown> = {},
 ): Promise<ToolCallResponse> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TOOL_TIMEOUT_MS);
+
   try {
     const response = await fetch(`${mcpUrl}/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tool: toolName, args }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       return {
@@ -214,10 +226,15 @@ export async function callTool(
 
     return (await response.json()) as ToolCallResponse;
   } catch (error) {
+    clearTimeout(timeoutId);
+    const message = error instanceof Error ? error.message : "unknown error";
+    const errorText = message.includes("aborted")
+      ? `Tool server timeout after ${TOOL_TIMEOUT_MS}ms`
+      : `Failed to call tool: ${message}`;
     return {
       ok: false,
       stdout: "",
-      stderr: `Failed to call tool: ${error instanceof Error ? error.message : "unknown error"}`,
+      stderr: errorText,
     };
   }
 }

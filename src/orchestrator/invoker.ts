@@ -1,5 +1,9 @@
 /**
  * Agent invoker - send JSON-RPC invoke requests to agents
+ *
+ * Hardening features:
+ * - Deterministic timeout (5s per agent)
+ * - Retry logic (max 1 retry on transient failures)
  */
 
 import type {
@@ -11,17 +15,40 @@ import type {
 } from "../shared/types.js";
 import type { DiscoveredAgent } from "./discovery.js";
 
+const AGENT_TIMEOUT_MS = 5000;
+const MAX_RETRIES = 1;
+
 export interface InvokeResult {
   agentName: string;
   skillId: string;
   findings: Finding[];
   error?: string;
+  retried?: boolean;
 }
 
 /**
- * Invoke a skill on an agent via JSON-RPC
+ * Check if an error is retryable (transient network issues)
  */
-export async function invokeAgent(
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes("timeout") ||
+      message.includes("aborted") ||
+      message.includes("econnrefused") ||
+      message.includes("econnreset") ||
+      message.includes("network") ||
+      message.includes("unable to connect") ||
+      message.includes("connection refused")
+    );
+  }
+  return false;
+}
+
+/**
+ * Single attempt to invoke an agent with timeout
+ */
+async function attemptInvoke(
   agent: DiscoveredAgent,
   skillId: string,
   diff: string,
@@ -40,12 +67,18 @@ export async function invokeAgent(
     },
   };
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
+
   try {
     const response = await fetch(agent.card.endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       return {
@@ -74,13 +107,54 @@ export async function invokeAgent(
       findings: jsonRpcResponse.result.findings,
     };
   } catch (error) {
-    return {
-      agentName: agent.card.name,
-      skillId,
-      findings: [],
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
+    clearTimeout(timeoutId);
+    throw error;
   }
+}
+
+/**
+ * Invoke a skill on an agent via JSON-RPC
+ * Includes timeout (5s) and retry logic (max 1 retry)
+ */
+export async function invokeAgent(
+  agent: DiscoveredAgent,
+  skillId: string,
+  diff: string,
+  mcpUrl: string,
+): Promise<InvokeResult> {
+  let lastError: unknown;
+  let retried = false;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const result = await attemptInvoke(agent, skillId, diff, mcpUrl);
+      if (retried) {
+        result.retried = true;
+      }
+      return result;
+    } catch (error) {
+      lastError = error;
+
+      // Only retry on transient errors
+      if (attempt < MAX_RETRIES && isRetryableError(error)) {
+        retried = true;
+        continue;
+      }
+
+      // Non-retryable error or max retries reached
+      break;
+    }
+  }
+
+  // All attempts failed
+  const errorMessage = lastError instanceof Error ? lastError.message : "Unknown error";
+  return {
+    agentName: agent.card.name,
+    skillId,
+    findings: [],
+    error: errorMessage.includes("aborted") ? `Timeout after ${AGENT_TIMEOUT_MS}ms` : errorMessage,
+    retried,
+  };
 }
 
 /**
