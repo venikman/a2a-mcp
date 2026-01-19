@@ -1478,105 +1478,70 @@ describe("Multi-turn Negotiation", () => {
 });
 
 // =============================================================================
-// Test: Python Cross-Implementation Agent
+// Test: Bun Cross-Implementation Agent
 // =============================================================================
 
-describe("Python Cross-Implementation", () => {
-  let pythonAgentProc: Subprocess | null = null;
-  const PYTHON_AGENT_PORT = 9210;
-  const PYTHON_AGENT_URL = `http://127.0.0.1:${PYTHON_AGENT_PORT}`;
+describe("Bun Cross-Implementation", () => {
+  let bunAgentProc: Subprocess | null = null;
+  const BUN_AGENT_PORT = 9210;
+  const BUN_AGENT_URL = `http://127.0.0.1:${BUN_AGENT_PORT}`;
 
-  // Check if Python and uvicorn are available
-  const checkPythonAvailable = async (): Promise<boolean> => {
-    try {
-      const result = spawn({
-        cmd: ["python3", "-c", "import fastapi, uvicorn; print('ok')"],
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-      const output = await new Response(result.stdout).text();
-      await result.exited;
-      return output.trim() === "ok";
-    } catch {
-      return false;
+  const startBunAgent = async () => {
+    bunAgentProc = spawn({
+      cmd: ["bun", "run", `${ROOT}/agents/bun-security/agent.ts`],
+      cwd: ROOT,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    const healthy = await waitForService(BUN_AGENT_URL, 20);
+    if (!healthy) {
+      throw new Error(`Service at ${BUN_AGENT_URL} failed to start`);
     }
   };
 
   afterEach(() => {
-    if (pythonAgentProc) {
-      pythonAgentProc.kill();
-      pythonAgentProc = null;
+    if (bunAgentProc) {
+      bunAgentProc.kill();
+      bunAgentProc = null;
     }
   });
 
-  test("Python agent returns valid Agent Card (if Python available)", async () => {
-    const pythonAvailable = await checkPythonAvailable();
-    if (!pythonAvailable) {
-      console.warn("Skipping Python agent test - Python/FastAPI not available");
-      return;
-    }
+  test("Bun agent returns valid Agent Card", async () => {
+    await startBunAgent();
 
-    // Start Python agent
-    pythonAgentProc = spawn({
-      cmd: ["python3", `${ROOT}/agents/python-security/agent.py`],
-      cwd: ROOT,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-
-    // Wait for agent to start
-    await new Promise((r) => setTimeout(r, 2000));
-
-    // Fetch agent card
-    const response = await fetch(`${PYTHON_AGENT_URL}/.well-known/agent-card.json`);
+    const response = await fetch(`${BUN_AGENT_URL}/.well-known/agent-card.json`);
     expect(response.ok).toBe(true);
 
     const card = await response.json();
 
-    // Verify card structure
-    expect(card.name).toBe("python-security-agent");
+    expect(card.name).toBe("bun-security-agent");
     expect(card.protocol_version).toBe("1.0");
     expect(card.skills).toHaveLength(1);
-    expect(card.skills[0].id).toBe("review.security.python");
+    expect(card.skills[0].id).toBe("review.security.bun");
     expect(card.skills[0].version).toBe("1.0");
     expect(card.auth.type).toBe("none");
 
-    // Verify card passes schema validation
     const validation = AgentCardSchema.safeParse(card);
     expect(validation.success).toBe(true);
   }, 10000);
 
-  test("Python agent detects secrets via JSON-RPC (if Python available)", async () => {
-    const pythonAvailable = await checkPythonAvailable();
-    if (!pythonAvailable) {
-      console.warn("Skipping Python agent test - Python/FastAPI not available");
-      return;
-    }
+  test("Bun agent detects secrets via JSON-RPC", async () => {
+    await startBunAgent();
 
-    // Start Python agent
-    pythonAgentProc = spawn({
-      cmd: ["python3", `${ROOT}/agents/python-security/agent.py`],
-      cwd: ROOT,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-
-    // Wait for agent to start
-    await new Promise((r) => setTimeout(r, 2000));
-
-    const diff = `+++ b/config.py
+    const diff = `+++ b/config.ts
 +API_KEY = "sk_test_secret123"
 +PASSWORD = "hunter2"`;
 
-    const response = await fetch(`${PYTHON_AGENT_URL}/rpc`, {
+    const response = await fetch(`${BUN_AGENT_URL}/rpc`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         jsonrpc: "2.0",
-        id: "python-test-1",
+        id: "bun-test-1",
         method: "invoke",
         params: {
-          skill: "review.security.python",
+          skill: "review.security.bun",
           input: {
             diff,
             mcp_url: TOOL_SERVER_URL,
@@ -1589,15 +1554,13 @@ describe("Python Cross-Implementation", () => {
 
     const result = await response.json();
     expect(result.jsonrpc).toBe("2.0");
-    expect(result.id).toBe("python-test-1");
+    expect(result.id).toBe("bun-test-1");
     expect(result.result.findings.length).toBeGreaterThanOrEqual(2);
 
-    // Check for API key finding
     const apiKeyFinding = result.result.findings.find((f: { title: string }) => f.title === "API Key");
     expect(apiKeyFinding).toBeDefined();
     expect(apiKeyFinding.severity).toBe("high");
 
-    // Check for password finding
     const passwordFinding = result.result.findings.find(
       (f: { title: string }) => f.title === "Hardcoded password",
     );
@@ -1605,36 +1568,18 @@ describe("Python Cross-Implementation", () => {
     expect(passwordFinding.severity).toBe("critical");
   }, 10000);
 
-  test("Python agent compatible with orchestrator discovery (if Python available)", async () => {
-    const pythonAvailable = await checkPythonAvailable();
-    if (!pythonAvailable) {
-      console.warn("Skipping Python agent test - Python/FastAPI not available");
-      return;
-    }
+  test("Bun agent compatible with orchestrator discovery", async () => {
+    await startBunAgent();
 
-    // Start Python agent
-    pythonAgentProc = spawn({
-      cmd: ["python3", `${ROOT}/agents/python-security/agent.py`],
-      cwd: ROOT,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-
-    // Wait for agent to start
-    await new Promise((r) => setTimeout(r, 2000));
-
-    // Use orchestrator's discovery module
     const { discoverAgents, isProtocolCompatible } = await import("../src/orchestrator/discovery.js");
 
-    // Python agent should be discoverable
-    const agents = await discoverAgents([PYTHON_AGENT_URL]);
+    const agents = await discoverAgents([BUN_AGENT_URL]);
     expect(agents).toHaveLength(1);
 
-    const pythonAgent = agents[0];
-    expect(pythonAgent.card.name).toBe("python-security-agent");
+    const bunAgent = agents[0];
+    expect(bunAgent.card.name).toBe("bun-security-agent");
 
-    // Protocol version should be compatible
-    expect(isProtocolCompatible(pythonAgent.card.protocol_version)).toBe(true);
+    expect(isProtocolCompatible(bunAgent.card.protocol_version)).toBe(true);
   }, 10000);
 });
 
