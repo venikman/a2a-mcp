@@ -136,6 +136,22 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
     ? "/tools · /tools/call · /tools/health"
     : "/tools · /call · /health";
   const normalizeUrl = (url: string) => url.replace(/\/$/, "");
+  const formatDisplayUrl = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      const path = parsed.pathname === "/" ? "" : parsed.pathname;
+      return `${parsed.host}${path}`;
+    } catch {
+      return url;
+    }
+  };
+  const formatPath = (url: string) => {
+    try {
+      return new URL(url).pathname || "/";
+    } catch {
+      return url;
+    }
+  };
   const securityBaseUrl = normalizeUrl(securityUrl);
   const styleBaseUrl = normalizeUrl(styleUrl);
   const testsBaseUrl = normalizeUrl(testsUrl);
@@ -145,6 +161,17 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
   const securityRpcUrl = `${securityBaseUrl}/rpc`;
   const styleRpcUrl = `${styleBaseUrl}/rpc`;
   const testsRpcUrl = `${testsBaseUrl}/rpc`;
+  const dashboardLabel = formatDisplayUrl(dashboardUrl);
+  const toolLabel = formatDisplayUrl(toolUrl);
+  const securityBaseLabel = formatDisplayUrl(securityBaseUrl);
+  const styleBaseLabel = formatDisplayUrl(styleBaseUrl);
+  const testsBaseLabel = formatDisplayUrl(testsBaseUrl);
+  const securityCardLabel = formatPath(securityCardUrl);
+  const styleCardLabel = formatPath(styleCardUrl);
+  const testsCardLabel = formatPath(testsCardUrl);
+  const securityRpcLabel = formatPath(securityRpcUrl);
+  const styleRpcLabel = formatPath(styleRpcUrl);
+  const testsRpcLabel = formatPath(testsRpcUrl);
   const demoScenariosJson = JSON.stringify(DEMO_SCENARIOS);
 
   return `<!DOCTYPE html>
@@ -300,32 +327,42 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
     .arch-meta-list {
       margin-top: 6px;
       display: grid;
-      gap: 4px;
+      gap: 6px;
     }
     .arch-meta-row {
-      display: grid;
-      grid-template-columns: 60px 1fr;
+      display: flex;
+      align-items: center;
       gap: 8px;
       font-size: 10px;
       color: var(--text-muted);
-      align-items: center;
+      min-width: 0;
     }
     .arch-meta-label {
       text-transform: uppercase;
       letter-spacing: 0.08em;
       font-size: 9px;
       color: var(--text-muted);
+      width: 44px;
+      flex-shrink: 0;
     }
     .arch-meta-value {
       font-family: 'SF Mono', Monaco, monospace;
       color: var(--text-secondary);
-      word-break: break-all;
+      min-width: 0;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .arch-meta-link {
       color: var(--text-secondary);
       text-decoration: none;
       font-family: 'SF Mono', Monaco, monospace;
-      word-break: break-all;
+      min-width: 0;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .arch-meta-link:hover { color: var(--text-primary); text-decoration: underline; }
     .arch-node-status {
@@ -386,19 +423,18 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
     .arch-agent-meta { font-size: 10px; color: var(--text-muted); margin-bottom: 4px; }
     .arch-agent-links {
       display: grid;
-      gap: 4px;
+      gap: 6px;
       margin-top: 6px;
     }
     .arch-agent-link {
-      display: grid;
-      grid-template-columns: 44px 1fr;
-      gap: 6px;
+      display: flex;
       align-items: center;
+      gap: 6px;
       font-size: 10px;
       font-family: 'SF Mono', Monaco, monospace;
       color: var(--text-secondary);
       text-decoration: none;
-      word-break: break-all;
+      min-width: 0;
     }
     .arch-agent-link span {
       font-size: 9px;
@@ -406,11 +442,19 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
       letter-spacing: 0.08em;
       color: var(--text-muted);
       font-family: inherit;
+      width: 40px;
+      flex-shrink: 0;
+    }
+    .arch-agent-link strong {
+      font-weight: 500;
+      min-width: 0;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .arch-agent-link:hover { color: var(--text-primary); text-decoration: underline; }
-    .arch-agent-url:hover { color: var(--text-primary); text-decoration: underline; }
-    .arch-agent-port { font-size: 10px; font-family: 'SF Mono', Monaco, monospace; color: var(--text-muted); margin-top: 4px; }
-    .arch-agent-endpoints { font-size: 9px; color: var(--text-muted); margin-top: 4px; }
+    .arch-agent-port { font-size: 10px; font-family: 'SF Mono', Monaco, monospace; color: var(--text-muted); margin-top: 6px; }
     .arch-agent-status {
       width: 6px;
       height: 6px;
@@ -926,7 +970,7 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
                 <div class="arch-meta-list">
                   <div class="arch-meta-row">
                     <span class="arch-meta-label">URL</span>
-                    <a class="arch-meta-link" href="${dashboardUrl}" target="_blank" rel="noopener">${dashboardUrl}</a>
+                    <a class="arch-meta-link" href="${dashboardUrl}" target="_blank" rel="noopener" title="${dashboardUrl}">${dashboardLabel}</a>
                   </div>
                   <div class="arch-meta-row">
                     <span class="arch-meta-label">APIs</span>
@@ -948,16 +992,19 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
                 <div class="arch-agent-name">Security</div>
                 <div class="arch-agent-meta">Skill: review.security</div>
                 <div class="arch-agent-links">
-                  <a class="arch-agent-link" href="${securityCardUrl}" target="_blank" rel="noopener">
-                    <span>Card</span>
-                    ${securityCardUrl}
+                  <a class="arch-agent-link" href="${securityBaseUrl}" target="_blank" rel="noopener" title="${securityBaseUrl}">
+                    <span>Base</span>
+                    <strong>${securityBaseLabel}</strong>
                   </a>
-                  <a class="arch-agent-link" href="${securityRpcUrl}" target="_blank" rel="noopener">
+                  <a class="arch-agent-link" href="${securityCardUrl}" target="_blank" rel="noopener" title="${securityCardUrl}">
+                    <span>Card</span>
+                    <strong>${securityCardLabel}</strong>
+                  </a>
+                  <a class="arch-agent-link" href="${securityRpcUrl}" target="_blank" rel="noopener" title="${securityRpcUrl}">
                     <span>RPC</span>
-                    ${securityRpcUrl}
+                    <strong>${securityRpcLabel}</strong>
                   </a>
                 </div>
-                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc · /health</div>
                 <div class="arch-agent-port">:${securityPort}</div>
                 <div class="arch-agent-status" id="security-status"></div>
               </div>
@@ -965,16 +1012,19 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
                 <div class="arch-agent-name">Style</div>
                 <div class="arch-agent-meta">Skill: review.style</div>
                 <div class="arch-agent-links">
-                  <a class="arch-agent-link" href="${styleCardUrl}" target="_blank" rel="noopener">
-                    <span>Card</span>
-                    ${styleCardUrl}
+                  <a class="arch-agent-link" href="${styleBaseUrl}" target="_blank" rel="noopener" title="${styleBaseUrl}">
+                    <span>Base</span>
+                    <strong>${styleBaseLabel}</strong>
                   </a>
-                  <a class="arch-agent-link" href="${styleRpcUrl}" target="_blank" rel="noopener">
+                  <a class="arch-agent-link" href="${styleCardUrl}" target="_blank" rel="noopener" title="${styleCardUrl}">
+                    <span>Card</span>
+                    <strong>${styleCardLabel}</strong>
+                  </a>
+                  <a class="arch-agent-link" href="${styleRpcUrl}" target="_blank" rel="noopener" title="${styleRpcUrl}">
                     <span>RPC</span>
-                    ${styleRpcUrl}
+                    <strong>${styleRpcLabel}</strong>
                   </a>
                 </div>
-                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc · /health</div>
                 <div class="arch-agent-port">:${stylePort}</div>
                 <div class="arch-agent-status" id="style-status"></div>
               </div>
@@ -982,16 +1032,19 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
                 <div class="arch-agent-name">Tests</div>
                 <div class="arch-agent-meta">Skill: review.tests</div>
                 <div class="arch-agent-links">
-                  <a class="arch-agent-link" href="${testsCardUrl}" target="_blank" rel="noopener">
-                    <span>Card</span>
-                    ${testsCardUrl}
+                  <a class="arch-agent-link" href="${testsBaseUrl}" target="_blank" rel="noopener" title="${testsBaseUrl}">
+                    <span>Base</span>
+                    <strong>${testsBaseLabel}</strong>
                   </a>
-                  <a class="arch-agent-link" href="${testsRpcUrl}" target="_blank" rel="noopener">
+                  <a class="arch-agent-link" href="${testsCardUrl}" target="_blank" rel="noopener" title="${testsCardUrl}">
+                    <span>Card</span>
+                    <strong>${testsCardLabel}</strong>
+                  </a>
+                  <a class="arch-agent-link" href="${testsRpcUrl}" target="_blank" rel="noopener" title="${testsRpcUrl}">
                     <span>RPC</span>
-                    ${testsRpcUrl}
+                    <strong>${testsRpcLabel}</strong>
                   </a>
                 </div>
-                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc · /health</div>
                 <div class="arch-agent-port">:${testsPort}</div>
                 <div class="arch-agent-status" id="tests-status"></div>
               </div>
@@ -1013,7 +1066,7 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
                 <div class="arch-meta-list">
                   <div class="arch-meta-row">
                     <span class="arch-meta-label">URL</span>
-                    <a class="arch-meta-link" href="${toolUrl}" target="_blank" rel="noopener">${toolUrl}</a>
+                    <a class="arch-meta-link" href="${toolUrl}" target="_blank" rel="noopener" title="${toolUrl}">${toolLabel}</a>
                   </div>
                   <div class="arch-meta-row">
                     <span class="arch-meta-label">APIs</span>
