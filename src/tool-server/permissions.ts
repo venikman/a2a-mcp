@@ -14,10 +14,7 @@
  * In production, this would come from a secure store (vault, database, etc.)
  */
 const TOKEN_PERMISSIONS: Record<string, string[]> = {
-  // Default swarm token - full access to safe tools
   "swarm-demo-token-2025": ["lint", "run_tests", "dep_audit"],
-
-  // Limited token for testing - restricted access
   "limited-token": ["lint"],
 };
 
@@ -64,12 +61,14 @@ export function getAllowedTools(token: string): string[] {
 // Environment-based Token
 // =============================================================================
 
+const DEFAULT_SWARM_AUTH_TOKEN = "swarm-demo-token-2025";
+
 /**
- * Get the expected auth token from environment
+ * Get the expected auth token from environment (defaults to the demo token)
  * Used by clients to authenticate with services
  */
-export function getAuthToken(): string | undefined {
-  return process.env.SWARM_AUTH_TOKEN;
+export function getAuthToken(): string {
+  return process.env.SWARM_AUTH_TOKEN ?? DEFAULT_SWARM_AUTH_TOKEN;
 }
 
 /**
