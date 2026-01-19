@@ -18,7 +18,7 @@ export class TestsAgent extends BaseAgent {
   readonly name = "tests-agent";
   readonly skillId = "review.tests";
   readonly skillDescription = "Find test coverage issues in a unified diff";
-  readonly port = 9203;
+  port = 9203;
 
   async analyze(input: ReviewInput): Promise<Finding[]> {
     const findings: Finding[] = [];

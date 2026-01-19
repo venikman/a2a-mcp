@@ -13,10 +13,17 @@
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Default model - optimized for code analysis
-const DEFAULT_MODEL = "x-ai/grok-code-fast-1";
+const DEFAULT_MODEL = process.env.LLM_MODEL ?? "anthropic/claude-3-haiku";
 
 // Timeout for LLM API calls (must be less than agent timeout to allow fallback)
-const LLM_TIMEOUT_MS = 3000;
+const DEFAULT_LLM_TIMEOUT_MS = 4000;
+const LLM_TIMEOUT_MS = (() => {
+  const raw = process.env.LLM_TIMEOUT_MS;
+  if (raw === undefined) return DEFAULT_LLM_TIMEOUT_MS;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_LLM_TIMEOUT_MS;
+  return Math.max(1000, parsed);
+})();
 
 interface OpenRouterMessage {
   role: "system" | "user" | "assistant";
@@ -46,7 +53,7 @@ export function isLLMMode(): boolean {
  *
  * @param systemPrompt - System instructions for the model
  * @param userPrompt - The actual content to analyze
- * @param model - Optional model override (default: claude-3-haiku)
+ * @param model - Optional model override (default: anthropic/claude-3-haiku)
  * @returns The model's response text
  */
 export async function analyzeWithLLM(
@@ -123,12 +130,20 @@ export async function analyzeWithLLM(
  * Extract JSON array from LLM response that may contain surrounding text
  */
 function extractJsonArray(response: string): string {
-  // Try to find JSON array in the response
-  const arrayMatch = response.match(/\[[\s\S]*\]/);
+  // Try to find a JSON array in the response (non-greedy to avoid trailing text)
+  const arrayMatch = response.match(/\[[\s\S]*?\]/);
   if (arrayMatch) {
-    return arrayMatch[0];
+    const candidate = arrayMatch[0];
+    try {
+      const parsed = JSON.parse(candidate);
+      if (Array.isArray(parsed)) {
+        return JSON.stringify(parsed);
+      }
+    } catch {
+      // Fall through to empty array
+    }
   }
-  // If no array found, return empty array
+  // If no valid array found, return empty array
   return "[]";
 }
 

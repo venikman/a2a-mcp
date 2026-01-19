@@ -18,7 +18,7 @@ export class SecurityAgent extends BaseAgent {
   readonly name = "security-agent";
   readonly skillId = "review.security";
   readonly skillDescription = "Find security issues in a unified diff";
-  readonly port = 9201;
+  port = 9201;
 
   async analyze(input: ReviewInput): Promise<Finding[]> {
     const findings: Finding[] = [];

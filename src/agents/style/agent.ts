@@ -22,7 +22,7 @@ export class StyleAgent extends BaseAgent {
   readonly name = "style-agent";
   readonly skillId = "review.style";
   readonly skillDescription = "Find style issues in a unified diff";
-  readonly port = 9202;
+  port = 9202;
 
   async analyze(input: ReviewInput): Promise<Finding[]> {
     const findings: Finding[] = [];

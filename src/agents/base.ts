@@ -9,6 +9,7 @@
 
 import { errorResponse, jsonResponse, jsonRpcErrors, jsonRpcSuccess } from "../shared/http.js";
 import { InvokeParamsSchema, JsonRpcRequestSchema } from "../shared/schemas.js";
+import { getAuthHeader } from "../tool-server/permissions.js";
 import type {
   AgentCard,
   AuthType,
@@ -41,7 +42,7 @@ export abstract class BaseAgent {
   abstract readonly name: string;
   abstract readonly skillId: string;
   abstract readonly skillDescription: string;
-  abstract readonly port: number;
+  abstract port: number;
 
   // Overridable in subclasses
   readonly skillVersion: string = DEFAULT_SKILL_VERSION;
@@ -153,6 +154,8 @@ export abstract class BaseAgent {
       },
     });
 
+    this.port = server.port;
+
     // Output port in parseable format for start-all.ts
     console.log(`STARTED:${JSON.stringify({ name: this.name, port: server.port })}`);
     return server;
@@ -233,8 +236,9 @@ export async function callTool(
 
   // Build headers with optional auth
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (options.authToken) {
-    headers["Authorization"] = `Bearer ${options.authToken}`;
+  const authHeader = options.authToken ? `Bearer ${options.authToken}` : getAuthHeader();
+  if (authHeader) {
+    headers["Authorization"] = authHeader;
   }
 
   try {

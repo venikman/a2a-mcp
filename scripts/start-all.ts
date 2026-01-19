@@ -95,6 +95,22 @@ async function startService(config: ServiceConfig, env?: Record<string, string>)
     const reader = proc.stdout.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const clearStartupTimeout = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+
+    const cancelReader = () => {
+      try {
+        reader.cancel();
+      } catch {
+        // Ignore cancellation errors
+      }
+    };
 
     const readOutput = async () => {
       try {
@@ -111,6 +127,7 @@ async function startService(config: ServiceConfig, env?: Record<string, string>)
             if (parsed && !resolved) {
               service.port = parsed.port;
               resolved = true;
+              clearStartupTimeout();
               resolve(service);
             }
             // Also print other output
@@ -121,6 +138,8 @@ async function startService(config: ServiceConfig, env?: Record<string, string>)
         }
       } catch (error) {
         if (!resolved) {
+          clearStartupTimeout();
+          cancelReader();
           reject(error);
         }
       }
@@ -129,9 +148,15 @@ async function startService(config: ServiceConfig, env?: Record<string, string>)
     readOutput();
 
     // Timeout if service doesn't start
-    setTimeout(() => {
+    timeoutId = setTimeout(() => {
       if (!resolved) {
         resolved = true;
+        cancelReader();
+        try {
+          proc.kill();
+        } catch {
+          // Ignore errors
+        }
         reject(new Error(`${config.name} failed to start within 5s`));
       }
     }, 5000);

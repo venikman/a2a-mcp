@@ -114,6 +114,19 @@ function isRetryableError(error: unknown): boolean {
   return false;
 }
 
+function isRetryableToolError(stderr: string): boolean {
+  const message = stderr.toLowerCase();
+  return (
+    message.includes("timeout") ||
+    message.includes("aborted") ||
+    message.includes("econnrefused") ||
+    message.includes("econnreset") ||
+    message.includes("network") ||
+    message.includes("unable to connect") ||
+    message.includes("connection refused")
+  );
+}
+
 interface AttemptResult {
   response?: AgentResponse;
   error?: string;
@@ -262,14 +275,25 @@ export async function invokeAgent(
 
           // Only fetch if tool is specified
           if (needMore.request_params.tool) {
-            const toolResult = await callMcpTool(
-              mcpUrl,
-              needMore.request_params.tool,
-              needMore.request_params.args ?? {},
-              correlationId,
-            );
+            const toolName = needMore.request_params.tool;
+            let toolResult: ToolCallResponse | null = null;
 
-            if (toolResult.ok) {
+            for (let toolAttempt = 0; toolAttempt <= MAX_RETRIES; toolAttempt++) {
+              toolResult = await callMcpTool(
+                mcpUrl,
+                toolName,
+                needMore.request_params.args ?? {},
+                correlationId,
+              );
+
+              if (toolResult.ok) break;
+              if (!isRetryableToolError(toolResult.stderr) || toolAttempt === MAX_RETRIES) {
+                break;
+              }
+              retried = true;
+            }
+
+            if (toolResult?.ok) {
               // Add tool result to context and continue negotiation
               additionalContext = {
                 ...additionalContext,
@@ -277,6 +301,21 @@ export async function invokeAgent(
               };
               break; // Break inner retry loop, continue negotiation
             }
+
+            const detail = toolResult?.stderr ? `: ${toolResult.stderr}` : "";
+
+            // Tool call failed - return with partial findings
+            circuitBreaker.recordSuccess(endpoint);
+            const durationMs = Math.round(performance.now() - startTime);
+            metricsCollector?.recordAgentLatency(agent.card.name, durationMs);
+            return {
+              agentName: agent.card.name,
+              skillId,
+              findings: [],
+              error: `Agent requested ${needMore.request_type} via ${toolName} but tool call failed${detail}`,
+              retried,
+              durationMs,
+            };
           }
 
           // Tool call failed or no tool specified - return with partial findings
@@ -329,7 +368,7 @@ export async function invokeAgent(
   }
 
   // All negotiation rounds exhausted (agent kept requesting more info)
-  circuitBreaker.recordSuccess(endpoint); // Not a failure, just max rounds
+  circuitBreaker.recordFailure(endpoint);
 
   const durationMs = Math.round(performance.now() - startTime);
   metricsCollector?.recordAgentLatency(agent.card.name, durationMs);

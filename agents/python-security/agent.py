@@ -9,12 +9,11 @@ Run with: uvicorn agent:app --host 127.0.0.1 --port 9210
 """
 
 import re
-import uuid
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple, Pattern
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 # =============================================================================
 # Configuration
@@ -160,33 +159,43 @@ AGENT_CARD = AgentCard(
 # Security Analysis
 # =============================================================================
 
+Severity = Literal["low", "medium", "high", "critical"]
+
+
+class SecretPattern(NamedTuple):
+    pattern: Pattern[str]
+    title: str
+    severity: Severity
+    recommendation: str
+
+
 # Patterns to detect secrets
-SECRET_PATTERNS = [
-    (
+SECRET_PATTERNS: list[SecretPattern] = [
+    SecretPattern(
         re.compile(r'(API_KEY|api_key|apiKey)\s*[=:]\s*["\']([^"\']+)["\']', re.IGNORECASE),
         "API Key",
         "high",
         "Move API keys to environment variables or a secrets manager",
     ),
-    (
+    SecretPattern(
         re.compile(r'(PASSWORD|password|passwd)\s*[=:]\s*["\']([^"\']+)["\']', re.IGNORECASE),
         "Hardcoded password",
         "critical",
         "Use environment variables or a secrets manager for passwords",
     ),
-    (
+    SecretPattern(
         re.compile(r'(SECRET|secret|SECRET_KEY|secret_key)\s*[=:]\s*["\']([^"\']+)["\']', re.IGNORECASE),
         "Hardcoded secret",
         "high",
         "Move secrets to environment variables or a secrets manager",
     ),
-    (
+    SecretPattern(
         re.compile(r'(sk_live_|sk_test_|pk_live_|pk_test_)[a-zA-Z0-9]+'),
         "Stripe API Key",
         "critical",
         "Remove Stripe keys from code; use environment variables",
     ),
-    (
+    SecretPattern(
         re.compile(r'(ghp_|gho_|ghu_|ghs_|ghr_)[a-zA-Z0-9]+'),
         "GitHub Token",
         "critical",
@@ -217,7 +226,7 @@ def analyze_diff(diff: str) -> list[Finding]:
 
         # Only check added lines
         if not line.startswith("+") or line.startswith("+++"):
-            if line.startswith(" ") or line.startswith("-"):
+            if line.startswith(" "):
                 current_line += 1
             continue
 
@@ -232,7 +241,7 @@ def analyze_diff(diff: str) -> list[Finding]:
                 evidence = f"Found: {match.group(0)}"
 
                 finding = Finding(
-                    severity=severity,  # type: ignore
+                    severity=severity,
                     title=title,
                     evidence=evidence,
                     recommendation=recommendation,

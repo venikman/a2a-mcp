@@ -9,14 +9,42 @@
 // Permission Configuration
 // =============================================================================
 
+const DEFAULT_SWARM_AUTH_TOKEN = "swarm-demo-token-2025";
+
+function buildTokenPermissionsFromEnv(): Record<string, string[]> | null {
+  const raw = process.env.SWARM_TOKEN_PERMISSIONS;
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+
+    const result: Record<string, string[]> = {};
+    for (const [token, tools] of Object.entries(parsed)) {
+      if (Array.isArray(tools) && tools.every((tool) => typeof tool === "string")) {
+        result[token] = tools;
+      }
+    }
+
+    return Object.keys(result).length > 0 ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+const ENV_TOKEN_PERMISSIONS = buildTokenPermissionsFromEnv();
+
 /**
  * Token to allowed tools mapping
- * In production, this would come from a secure store (vault, database, etc.)
+ * In production, this should come from a secure store or environment config.
  */
-const TOKEN_PERMISSIONS: Record<string, string[]> = {
-  "swarm-demo-token-2025": ["lint", "run_tests", "dep_audit"],
-  "limited-token": ["lint"],
-};
+const TOKEN_PERMISSIONS: Record<string, string[]> =
+  ENV_TOKEN_PERMISSIONS ?? {
+    "swarm-demo-token-2025": ["lint", "run_tests", "dep_audit"],
+    "limited-token": ["lint"],
+  };
 
 // =============================================================================
 // Permission Checking
@@ -61,14 +89,18 @@ export function getAllowedTools(token: string): string[] {
 // Environment-based Token
 // =============================================================================
 
-const DEFAULT_SWARM_AUTH_TOKEN = "swarm-demo-token-2025";
-
 /**
  * Get the expected auth token from environment (defaults to the demo token)
  * Used by clients to authenticate with services
  */
-export function getAuthToken(): string {
-  return process.env.SWARM_AUTH_TOKEN ?? DEFAULT_SWARM_AUTH_TOKEN;
+export function getAuthToken(): string | undefined {
+  if (process.env.SWARM_AUTH_TOKEN) {
+    return process.env.SWARM_AUTH_TOKEN;
+  }
+  if (ENV_TOKEN_PERMISSIONS) {
+    return undefined;
+  }
+  return DEFAULT_SWARM_AUTH_TOKEN;
 }
 
 /**
