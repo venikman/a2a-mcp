@@ -145,6 +145,7 @@ export async function runReview(diff: string, services: DashboardServices) {
       agent: result.agentName,
       skill: result.skillId,
       findingCount: result.findings.length,
+      findings: result.findings,
       error: result.error,
       durationMs: result.durationMs,
     })),

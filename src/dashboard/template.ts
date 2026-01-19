@@ -482,15 +482,24 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
     /* Agent results */
     .agent-list { margin-bottom: 20px; }
     .agent-item {
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      overflow: hidden;
+      border: 1px solid transparent;
+    }
+    .agent-item[open] { border-color: var(--border); }
+    .agent-summary {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 12px 14px;
-      background: var(--bg-tertiary);
-      border-radius: 6px;
-      margin-bottom: 6px;
+      cursor: pointer;
+      list-style: none;
     }
+    .agent-summary::-webkit-details-marker { display: none; }
     .agent-item-left { display: flex; align-items: center; gap: 10px; }
+    .agent-item-right { display: flex; align-items: center; gap: 10px; }
     .agent-status-dot {
       width: 8px;
       height: 8px;
@@ -500,6 +509,82 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
     .agent-status-dot.error { background: var(--error); }
     .agent-item-name { font-size: 13px; font-weight: 500; }
     .agent-item-stats { font-size: 12px; color: var(--text-muted); }
+    .agent-toggle {
+      font-size: 12px;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--bg-secondary);
+    }
+    .agent-toggle .toggle-open { display: none; }
+    .agent-item[open] .toggle-open { display: inline; }
+    .agent-item[open] .toggle-closed { display: none; }
+    .agent-details {
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+    .agent-detail-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .agent-detail-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .agent-detail-row span { color: var(--text-secondary); }
+    .agent-detail-error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--text-secondary);
+      font-size: 12px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    .agent-detail-findings {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .agent-detail-empty {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .agent-finding {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+    }
+    .agent-finding-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .agent-finding-title { font-size: 12px; font-weight: 600; }
+    .agent-finding-evidence {
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      padding: 8px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      white-space: pre-wrap;
+    }
+    .agent-finding-recommendation {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
 
     /* Findings */
     .finding {
@@ -1034,9 +1119,59 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
       return div;
     }
 
+    function createAgentDetailRow(label, value) {
+      const row = document.createElement('div');
+      row.className = 'agent-detail-row';
+
+      const labelSpan = document.createElement('div');
+      labelSpan.textContent = label;
+      row.appendChild(labelSpan);
+
+      const valueSpan = document.createElement('span');
+      valueSpan.textContent = value;
+      row.appendChild(valueSpan);
+
+      return row;
+    }
+
+    function createAgentFinding(finding) {
+      const item = document.createElement('div');
+      item.className = 'agent-finding';
+
+      const header = document.createElement('div');
+      header.className = 'agent-finding-header';
+
+      const title = document.createElement('span');
+      title.className = 'agent-finding-title';
+      title.textContent = finding.title;
+      header.appendChild(title);
+
+      const pill = document.createElement('span');
+      pill.className = 'pill ' + finding.severity;
+      pill.textContent = finding.severity;
+      header.appendChild(pill);
+
+      item.appendChild(header);
+
+      const evidence = document.createElement('div');
+      evidence.className = 'agent-finding-evidence';
+      evidence.textContent = finding.evidence;
+      item.appendChild(evidence);
+
+      const recommendation = document.createElement('div');
+      recommendation.className = 'agent-finding-recommendation';
+      recommendation.textContent = finding.recommendation;
+      item.appendChild(recommendation);
+
+      return item;
+    }
+
     function createAgentItem(agent, mode) {
-      const div = document.createElement('div');
-      div.className = 'agent-item';
+      const details = document.createElement('details');
+      details.className = 'agent-item';
+
+      const summary = document.createElement('summary');
+      summary.className = 'agent-summary';
 
       const left = document.createElement('div');
       left.className = 'agent-item-left';
@@ -1062,14 +1197,67 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
       modeBadge.style.fontSize = '9px';
       left.appendChild(modeBadge);
 
-      div.appendChild(left);
+      summary.appendChild(left);
+
+      const right = document.createElement('div');
+      right.className = 'agent-item-right';
 
       const stats = document.createElement('span');
       stats.className = 'agent-item-stats';
-      stats.textContent = agent.findingCount + ' findings · ' + agent.durationMs + 'ms';
-      div.appendChild(stats);
+      const durationLabel = typeof agent.durationMs === 'number' ? agent.durationMs + 'ms' : 'n/a';
+      stats.textContent = agent.findingCount + ' findings · ' + durationLabel;
+      right.appendChild(stats);
 
-      return div;
+      const toggle = document.createElement('span');
+      toggle.className = 'agent-toggle';
+      const toggleOpen = document.createElement('span');
+      toggleOpen.className = 'toggle-open';
+      toggleOpen.textContent = '-';
+      const toggleClosed = document.createElement('span');
+      toggleClosed.className = 'toggle-closed';
+      toggleClosed.textContent = '+';
+      toggle.appendChild(toggleOpen);
+      toggle.appendChild(toggleClosed);
+      right.appendChild(toggle);
+
+      summary.appendChild(right);
+      details.appendChild(summary);
+
+      const detailBody = document.createElement('div');
+      detailBody.className = 'agent-details';
+
+      const meta = document.createElement('div');
+      meta.className = 'agent-detail-meta';
+      meta.appendChild(createAgentDetailRow('Skill', agent.skill || ''));
+      meta.appendChild(createAgentDetailRow('Duration', durationLabel));
+      meta.appendChild(createAgentDetailRow('Findings', String(agent.findingCount)));
+      detailBody.appendChild(meta);
+
+      if (agent.error) {
+        const error = document.createElement('div');
+        error.className = 'agent-detail-error';
+        error.textContent = agent.error;
+        detailBody.appendChild(error);
+      }
+
+      const findingsWrap = document.createElement('div');
+      findingsWrap.className = 'agent-detail-findings';
+      const findings = Array.isArray(agent.findings) ? agent.findings : [];
+      if (findings.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'agent-detail-empty';
+        empty.textContent = agent.error ? 'No findings returned (agent error).' : 'No findings returned.';
+        findingsWrap.appendChild(empty);
+      } else {
+        for (const finding of findings) {
+          findingsWrap.appendChild(createAgentFinding(finding));
+        }
+      }
+      detailBody.appendChild(findingsWrap);
+
+      details.appendChild(detailBody);
+
+      return details;
     }
 
     function createFinding(finding) {
