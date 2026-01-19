@@ -56,7 +56,8 @@ const server = Bun.serve({
 
     // Serve dashboard HTML
     if (url.pathname === "/" || url.pathname === "/index.html") {
-      return new Response(renderDashboardHtml(services, server.port), {
+      const dashboardUrl = `http://127.0.0.1:${server.port}`;
+      return new Response(renderDashboardHtml(services, server.port, dashboardUrl), {
         headers: { "Content-Type": "text/html" },
       });
     }

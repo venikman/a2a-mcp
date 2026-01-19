@@ -77,7 +77,12 @@ export function extractPort(url: string): string {
   return match ? match[1] : "????";
 }
 
-export function renderDashboardHtml(services: DashboardServices, dashboardPort: number): string {
+export function renderDashboardHtml(
+  services: DashboardServices,
+  dashboardPort: number,
+  dashboardUrl?: string,
+): string {
+  const resolvedDashboardUrl = dashboardUrl ?? `http://127.0.0.1:${dashboardPort}`;
   return renderDashboard({
     dashboardPort,
     toolPort: extractPort(services.toolServer.url),
@@ -85,6 +90,11 @@ export function renderDashboardHtml(services: DashboardServices, dashboardPort: 
     stylePort: extractPort(services.styleAgent.url),
     testsPort: extractPort(services.testsAgent.url),
     analysisMode: getAnalysisMode(),
+    dashboardUrl: resolvedDashboardUrl,
+    toolUrl: services.toolServer.url,
+    securityUrl: services.securityAgent.url,
+    styleUrl: services.styleAgent.url,
+    testsUrl: services.testsAgent.url,
   });
 }
 

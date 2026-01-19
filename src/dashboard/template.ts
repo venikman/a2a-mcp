@@ -5,6 +5,11 @@ export interface DashboardTemplateOptions {
   stylePort: string;
   testsPort: string;
   analysisMode: "llm" | "local";
+  dashboardUrl: string;
+  toolUrl: string;
+  securityUrl: string;
+  styleUrl: string;
+  testsUrl: string;
 }
 
 const DEMO_SCENARIOS = {
@@ -113,8 +118,23 @@ const DEMO_SCENARIOS = {
 };
 
 export function generateDashboard(options: DashboardTemplateOptions): string {
-  const { dashboardPort, toolPort, securityPort, stylePort, testsPort, analysisMode } = options;
+  const {
+    dashboardPort,
+    toolPort,
+    securityPort,
+    stylePort,
+    testsPort,
+    analysisMode,
+    dashboardUrl,
+    toolUrl,
+    securityUrl,
+    styleUrl,
+    testsUrl,
+  } = options;
   const modeLabel = analysisMode === "llm" ? "LLM Mode" : "Local Mode";
+  const toolEndpoints = toolUrl.endsWith("/tools")
+    ? "/tools · /tools/call · /tools/health"
+    : "/tools · /call · /health";
   const demoScenariosJson = JSON.stringify(DEMO_SCENARIOS);
 
   return `<!DOCTYPE html>
@@ -267,6 +287,37 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
     .arch-node-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
     .arch-node-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
     .arch-node-port { font-family: 'SF Mono', Monaco, monospace; }
+    .arch-meta-list {
+      margin-top: 6px;
+      display: grid;
+      gap: 4px;
+    }
+    .arch-meta-row {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 8px;
+      font-size: 10px;
+      color: var(--text-muted);
+      align-items: center;
+    }
+    .arch-meta-label {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+    .arch-meta-value {
+      font-family: 'SF Mono', Monaco, monospace;
+      color: var(--text-secondary);
+      word-break: break-all;
+    }
+    .arch-meta-link {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-family: 'SF Mono', Monaco, monospace;
+      word-break: break-all;
+    }
+    .arch-meta-link:hover { color: var(--text-primary); text-decoration: underline; }
     .arch-node-status {
       width: 8px;
       height: 8px;
@@ -322,7 +373,18 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
       text-align: center;
     }
     .arch-agent-name { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
-    .arch-agent-port { font-size: 10px; font-family: 'SF Mono', Monaco, monospace; color: var(--text-muted); }
+    .arch-agent-meta { font-size: 10px; color: var(--text-muted); margin-bottom: 4px; }
+    .arch-agent-url {
+      font-size: 10px;
+      font-family: 'SF Mono', Monaco, monospace;
+      color: var(--text-secondary);
+      text-decoration: none;
+      word-break: break-all;
+      display: inline-block;
+    }
+    .arch-agent-url:hover { color: var(--text-primary); text-decoration: underline; }
+    .arch-agent-port { font-size: 10px; font-family: 'SF Mono', Monaco, monospace; color: var(--text-muted); margin-top: 4px; }
+    .arch-agent-endpoints { font-size: 9px; color: var(--text-muted); margin-top: 4px; }
     .arch-agent-status {
       width: 6px;
       height: 6px;
@@ -835,6 +897,16 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
               <div class="arch-node-content">
                 <div class="arch-node-name">Orchestrator</div>
                 <div class="arch-node-meta">Dashboard <span class="arch-node-port">:${dashboardPort}</span></div>
+                <div class="arch-meta-list">
+                  <div class="arch-meta-row">
+                    <span class="arch-meta-label">URL</span>
+                    <a class="arch-meta-link" href="${dashboardUrl}" target="_blank" rel="noopener">${dashboardUrl}</a>
+                  </div>
+                  <div class="arch-meta-row">
+                    <span class="arch-meta-label">APIs</span>
+                    <span class="arch-meta-value">/api/health · /api/review</span>
+                  </div>
+                </div>
               </div>
               <div class="arch-node-status online"></div>
             </div>
@@ -848,16 +920,25 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
             <div class="arch-agents">
               <div class="arch-agent" id="security-agent">
                 <div class="arch-agent-name">Security</div>
+                <div class="arch-agent-meta">Skill: review.security</div>
+                <a class="arch-agent-url" href="${securityUrl}" target="_blank" rel="noopener">${securityUrl}</a>
+                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc</div>
                 <div class="arch-agent-port">:${securityPort}</div>
                 <div class="arch-agent-status" id="security-status"></div>
               </div>
               <div class="arch-agent" id="style-agent">
                 <div class="arch-agent-name">Style</div>
+                <div class="arch-agent-meta">Skill: review.style</div>
+                <a class="arch-agent-url" href="${styleUrl}" target="_blank" rel="noopener">${styleUrl}</a>
+                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc</div>
                 <div class="arch-agent-port">:${stylePort}</div>
                 <div class="arch-agent-status" id="style-status"></div>
               </div>
               <div class="arch-agent" id="tests-agent">
                 <div class="arch-agent-name">Tests</div>
+                <div class="arch-agent-meta">Skill: review.tests</div>
+                <a class="arch-agent-url" href="${testsUrl}" target="_blank" rel="noopener">${testsUrl}</a>
+                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc</div>
                 <div class="arch-agent-port">:${testsPort}</div>
                 <div class="arch-agent-status" id="tests-status"></div>
               </div>
@@ -876,6 +957,16 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
               <div class="arch-node-content">
                 <div class="arch-node-name">Tool Server</div>
                 <div class="arch-node-meta">lint, run_tests, dep_audit <span class="arch-node-port">:${toolPort}</span></div>
+                <div class="arch-meta-list">
+                  <div class="arch-meta-row">
+                    <span class="arch-meta-label">URL</span>
+                    <a class="arch-meta-link" href="${toolUrl}" target="_blank" rel="noopener">${toolUrl}</a>
+                  </div>
+                  <div class="arch-meta-row">
+                    <span class="arch-meta-label">APIs</span>
+                    <span class="arch-meta-value">${toolEndpoints}</span>
+                  </div>
+                </div>
               </div>
               <div class="arch-node-status" id="tool-status"></div>
             </div>

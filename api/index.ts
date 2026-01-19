@@ -15,7 +15,7 @@ function resolveDashboardPort(): number {
 export default function handler(req: Request) {
   const baseUrl = new URL(req.url).origin;
   const services = getServicesFromEnv({ baseUrl });
-  const html = renderDashboardHtml(services, resolveDashboardPort());
+  const html = renderDashboardHtml(services, resolveDashboardPort(), baseUrl);
   return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
