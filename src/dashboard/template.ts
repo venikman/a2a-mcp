@@ -135,6 +135,16 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
   const toolEndpoints = toolUrl.endsWith("/tools")
     ? "/tools · /tools/call · /tools/health"
     : "/tools · /call · /health";
+  const normalizeUrl = (url: string) => url.replace(/\/$/, "");
+  const securityBaseUrl = normalizeUrl(securityUrl);
+  const styleBaseUrl = normalizeUrl(styleUrl);
+  const testsBaseUrl = normalizeUrl(testsUrl);
+  const securityCardUrl = `${securityBaseUrl}/.well-known/agent-card.json`;
+  const styleCardUrl = `${styleBaseUrl}/.well-known/agent-card.json`;
+  const testsCardUrl = `${testsBaseUrl}/.well-known/agent-card.json`;
+  const securityRpcUrl = `${securityBaseUrl}/rpc`;
+  const styleRpcUrl = `${styleBaseUrl}/rpc`;
+  const testsRpcUrl = `${testsBaseUrl}/rpc`;
   const demoScenariosJson = JSON.stringify(DEMO_SCENARIOS);
 
   return `<!DOCTYPE html>
@@ -374,14 +384,30 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
     }
     .arch-agent-name { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
     .arch-agent-meta { font-size: 10px; color: var(--text-muted); margin-bottom: 4px; }
-    .arch-agent-url {
+    .arch-agent-links {
+      display: grid;
+      gap: 4px;
+      margin-top: 6px;
+    }
+    .arch-agent-link {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 6px;
+      align-items: center;
       font-size: 10px;
       font-family: 'SF Mono', Monaco, monospace;
       color: var(--text-secondary);
       text-decoration: none;
       word-break: break-all;
-      display: inline-block;
     }
+    .arch-agent-link span {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      font-family: inherit;
+    }
+    .arch-agent-link:hover { color: var(--text-primary); text-decoration: underline; }
     .arch-agent-url:hover { color: var(--text-primary); text-decoration: underline; }
     .arch-agent-port { font-size: 10px; font-family: 'SF Mono', Monaco, monospace; color: var(--text-muted); margin-top: 4px; }
     .arch-agent-endpoints { font-size: 9px; color: var(--text-muted); margin-top: 4px; }
@@ -921,24 +947,51 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
               <div class="arch-agent" id="security-agent">
                 <div class="arch-agent-name">Security</div>
                 <div class="arch-agent-meta">Skill: review.security</div>
-                <a class="arch-agent-url" href="${securityUrl}" target="_blank" rel="noopener">${securityUrl}</a>
-                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc</div>
+                <div class="arch-agent-links">
+                  <a class="arch-agent-link" href="${securityCardUrl}" target="_blank" rel="noopener">
+                    <span>Card</span>
+                    ${securityCardUrl}
+                  </a>
+                  <a class="arch-agent-link" href="${securityRpcUrl}" target="_blank" rel="noopener">
+                    <span>RPC</span>
+                    ${securityRpcUrl}
+                  </a>
+                </div>
+                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc · /health</div>
                 <div class="arch-agent-port">:${securityPort}</div>
                 <div class="arch-agent-status" id="security-status"></div>
               </div>
               <div class="arch-agent" id="style-agent">
                 <div class="arch-agent-name">Style</div>
                 <div class="arch-agent-meta">Skill: review.style</div>
-                <a class="arch-agent-url" href="${styleUrl}" target="_blank" rel="noopener">${styleUrl}</a>
-                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc</div>
+                <div class="arch-agent-links">
+                  <a class="arch-agent-link" href="${styleCardUrl}" target="_blank" rel="noopener">
+                    <span>Card</span>
+                    ${styleCardUrl}
+                  </a>
+                  <a class="arch-agent-link" href="${styleRpcUrl}" target="_blank" rel="noopener">
+                    <span>RPC</span>
+                    ${styleRpcUrl}
+                  </a>
+                </div>
+                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc · /health</div>
                 <div class="arch-agent-port">:${stylePort}</div>
                 <div class="arch-agent-status" id="style-status"></div>
               </div>
               <div class="arch-agent" id="tests-agent">
                 <div class="arch-agent-name">Tests</div>
                 <div class="arch-agent-meta">Skill: review.tests</div>
-                <a class="arch-agent-url" href="${testsUrl}" target="_blank" rel="noopener">${testsUrl}</a>
-                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc</div>
+                <div class="arch-agent-links">
+                  <a class="arch-agent-link" href="${testsCardUrl}" target="_blank" rel="noopener">
+                    <span>Card</span>
+                    ${testsCardUrl}
+                  </a>
+                  <a class="arch-agent-link" href="${testsRpcUrl}" target="_blank" rel="noopener">
+                    <span>RPC</span>
+                    ${testsRpcUrl}
+                  </a>
+                </div>
+                <div class="arch-agent-endpoints">/.well-known/agent-card.json · /rpc · /health</div>
                 <div class="arch-agent-port">:${testsPort}</div>
                 <div class="arch-agent-status" id="tests-status"></div>
               </div>
