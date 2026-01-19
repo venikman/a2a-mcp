@@ -15,6 +15,10 @@ export interface DashboardServices {
   testsAgent: ServiceConfig;
 }
 
+export interface ServiceEnvOptions {
+  baseUrl?: string;
+}
+
 const DEFAULT_SERVICE_URLS = {
   toolServer: "http://127.0.0.1:9100",
   securityAgent: "http://127.0.0.1:9201",
@@ -22,23 +26,35 @@ const DEFAULT_SERVICE_URLS = {
   testsAgent: "http://127.0.0.1:9203",
 };
 
-export function getServicesFromEnv(): DashboardServices {
+function normalizeBaseUrl(baseUrl?: string): string | undefined {
+  if (!baseUrl) return undefined;
+  return baseUrl.replace(/\/$/, "");
+}
+
+export function getServicesFromEnv(options: ServiceEnvOptions = {}): DashboardServices {
+  const baseUrl = normalizeBaseUrl(options.baseUrl);
+  const agentBaseUrl = baseUrl ? `${baseUrl}/agents` : undefined;
+  const toolBaseUrl = baseUrl ? `${baseUrl}/tools` : undefined;
+  const securityAgentUrl = agentBaseUrl ? `${agentBaseUrl}/security` : undefined;
+  const styleAgentUrl = agentBaseUrl ? `${agentBaseUrl}/style` : undefined;
+  const testsAgentUrl = agentBaseUrl ? `${agentBaseUrl}/tests` : undefined;
+
   return {
     toolServer: {
       name: "Tool Server",
-      url: process.env.TOOL_SERVER_URL || DEFAULT_SERVICE_URLS.toolServer,
+      url: process.env.TOOL_SERVER_URL || toolBaseUrl || DEFAULT_SERVICE_URLS.toolServer,
     },
     securityAgent: {
       name: "Security Agent",
-      url: process.env.SECURITY_AGENT_URL || DEFAULT_SERVICE_URLS.securityAgent,
+      url: process.env.SECURITY_AGENT_URL || securityAgentUrl || DEFAULT_SERVICE_URLS.securityAgent,
     },
     styleAgent: {
       name: "Style Agent",
-      url: process.env.STYLE_AGENT_URL || DEFAULT_SERVICE_URLS.styleAgent,
+      url: process.env.STYLE_AGENT_URL || styleAgentUrl || DEFAULT_SERVICE_URLS.styleAgent,
     },
     testsAgent: {
       name: "Tests Agent",
-      url: process.env.TESTS_AGENT_URL || DEFAULT_SERVICE_URLS.testsAgent,
+      url: process.env.TESTS_AGENT_URL || testsAgentUrl || DEFAULT_SERVICE_URLS.testsAgent,
     },
   };
 }
@@ -48,6 +64,15 @@ export function getAnalysisMode(): "llm" | "local" {
 }
 
 export function extractPort(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.port) return parsed.port;
+    if (parsed.protocol === "https:") return "443";
+    if (parsed.protocol === "http:") return "80";
+  } catch {
+    // Fall through to regex parsing.
+  }
+
   const match = url.match(/:(\d+)(?:\/|$)/);
   return match ? match[1] : "????";
 }

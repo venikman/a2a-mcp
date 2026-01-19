@@ -29,7 +29,8 @@ export default async function handler(req: Request) {
   }
 
   try {
-    const services = getServicesFromEnv();
+    const baseUrl = new URL(req.url).origin;
+    const services = getServicesFromEnv({ baseUrl });
     const result = await runReview(diff, services);
     return jsonResponse(result);
   } catch (error) {

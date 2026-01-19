@@ -12,8 +12,9 @@ function resolveDashboardPort(): number {
   return 443;
 }
 
-export default function handler() {
-  const services = getServicesFromEnv();
+export default function handler(req: Request) {
+  const baseUrl = new URL(req.url).origin;
+  const services = getServicesFromEnv({ baseUrl });
   const html = renderDashboardHtml(services, resolveDashboardPort());
   return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8" },

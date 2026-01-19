@@ -11,6 +11,30 @@
   },
   "rewrites": [
     {
+      "source": "/agents/:agent/.well-known/agent-card.json",
+      "destination": "/api/agents/card?agent=:agent"
+    },
+    {
+      "source": "/agents/:agent/rpc",
+      "destination": "/api/agents/rpc?agent=:agent"
+    },
+    {
+      "source": "/agents/:agent/health",
+      "destination": "/api/agents/health?agent=:agent"
+    },
+    {
+      "source": "/tools",
+      "destination": "/api/tools"
+    },
+    {
+      "source": "/tools/health",
+      "destination": "/api/tools/health"
+    },
+    {
+      "source": "/tools/call",
+      "destination": "/api/tools/call"
+    },
+    {
       "source": "/",
       "destination": "/api/index"
     }

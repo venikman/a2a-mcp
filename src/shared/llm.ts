@@ -75,7 +75,9 @@ export async function analyzeWithLLM(
     { role: "user", content: userPrompt },
   ];
 
-  // Use Bun's AbortSignal.timeout() for reliable timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+
   let response: Response;
   try {
     response = await fetch(OPENROUTER_API_URL, {
@@ -90,10 +92,9 @@ export async function analyzeWithLLM(
         model,
         messages,
       }),
-      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+      signal: controller.signal,
     });
   } catch (error) {
-    // Check for timeout - DOMException with name TimeoutError in Bun
     const errorName = (error as { name?: string })?.name;
     const errorMessage = (error as { message?: string })?.message ?? String(error);
     if (
@@ -105,6 +106,8 @@ export async function analyzeWithLLM(
       throw new Error(`LLM API timeout after ${LLM_TIMEOUT_MS}ms`);
     }
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (!response.ok) {
