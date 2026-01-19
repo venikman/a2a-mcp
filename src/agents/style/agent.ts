@@ -3,9 +3,14 @@
  *
  * Skill: review.style
  * Port: 9202
+ *
+ * Modes:
+ * - local (default): Uses regex-based pattern matching
+ * - api: Uses OpenRouter LLM for deeper analysis
  */
 
 import type { Finding } from "../../shared/types.js";
+import { analyzeStyleWithLLM, isLLMMode } from "../../shared/llm.js";
 import { BaseAgent, callTool, type ReviewInput } from "../base.js";
 import {
   checkInconsistentIndentation,
@@ -22,10 +27,26 @@ export class StyleAgent extends BaseAgent {
   async analyze(input: ReviewInput): Promise<Finding[]> {
     const findings: Finding[] = [];
 
-    // Run style checkers
-    findings.push(...checkLineLength(input.diff));
-    findings.push(...checkTrailingWhitespace(input.diff));
-    findings.push(...checkInconsistentIndentation(input.diff));
+    // Choose analysis method based on LLM_MODE
+    if (isLLMMode()) {
+      // Use LLM for deeper analysis
+      try {
+        const llmResponse = await analyzeStyleWithLLM(input.diff);
+        const llmFindings = JSON.parse(llmResponse) as Finding[];
+        findings.push(...llmFindings);
+      } catch (error) {
+        // Fallback to heuristic if LLM fails
+        console.error("[StyleAgent] LLM analysis failed, falling back to heuristic:", error);
+        findings.push(...checkLineLength(input.diff));
+        findings.push(...checkTrailingWhitespace(input.diff));
+        findings.push(...checkInconsistentIndentation(input.diff));
+      }
+    } else {
+      // Run style checkers (local mode)
+      findings.push(...checkLineLength(input.diff));
+      findings.push(...checkTrailingWhitespace(input.diff));
+      findings.push(...checkInconsistentIndentation(input.diff));
+    }
 
     // Optionally call lint tool if available
     try {

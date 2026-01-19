@@ -12,13 +12,18 @@
  *   --mcp-url=<url>    Tool server URL (default: http://127.0.0.1:9100)
  *   --agents=<urls>    Comma-separated agent base URLs
  *   --json             Output as JSON instead of formatted text
+ *   --verbose          Enable verbose logging
  */
 
+import { generateCorrelationId } from "../shared/correlation.js";
+import { createLogger } from "../shared/logger.js";
 import type { ToolRun } from "../shared/types.js";
 import { discoverAgents } from "./discovery.js";
-import { invokeAllAgents } from "./invoker.js";
+import { invokeAllAgentsWithMetrics } from "./invoker.js";
 import { mergeFindings } from "./merger.js";
 import { formatReviewComment } from "./reporter.js";
+
+const logger = createLogger("orchestrator");
 
 // Default configuration
 const DEFAULT_MCP_URL = "http://127.0.0.1:9100";
@@ -33,6 +38,7 @@ interface OrchestratorConfig {
   mcpUrl: string;
   agentUrls: string[];
   jsonOutput: boolean;
+  verbose: boolean;
 }
 
 /**
@@ -45,6 +51,7 @@ function parseArgs(): OrchestratorConfig {
   let mcpUrl = DEFAULT_MCP_URL;
   let agentUrls = DEFAULT_AGENT_URLS;
   let jsonOutput = false;
+  let verbose = false;
 
   for (const arg of args) {
     if (arg.startsWith("--diff=")) {
@@ -60,6 +67,8 @@ function parseArgs(): OrchestratorConfig {
         .map((u) => u.trim());
     } else if (arg === "--json") {
       jsonOutput = true;
+    } else if (arg === "--verbose" || arg === "-v") {
+      verbose = true;
     }
   }
 
@@ -78,7 +87,7 @@ function parseArgs(): OrchestratorConfig {
     process.exit(1);
   }
 
-  return { diff, mcpUrl, agentUrls, jsonOutput };
+  return { diff, mcpUrl, agentUrls, jsonOutput, verbose };
 }
 
 /**
@@ -111,33 +120,61 @@ async function readDiff(_config: OrchestratorConfig): Promise<string> {
  */
 async function main() {
   const config = parseArgs();
+  const correlationId = generateCorrelationId();
 
   // Read diff content
   const diff = await readDiff(config);
   if (!diff.trim()) {
+    logger.error("empty_diff", { correlationId });
     console.error("Error: Empty diff provided");
     process.exit(1);
   }
 
   // Discover agents
-  console.error("Discovering agents...");
-  const agents = await discoverAgents(config.agentUrls);
+  if (config.verbose) {
+    logger.info("discovery_start", {
+      correlationId,
+      data: { agent_urls: config.agentUrls },
+    });
+  }
+
+  const agents = await logger.timed(
+    "agent_discovery",
+    () => discoverAgents(config.agentUrls),
+    { correlationId },
+  );
 
   if (agents.length === 0) {
+    logger.error("no_agents_available", { correlationId });
     console.error("Error: No agents available");
     process.exit(1);
   }
 
-  console.error(`Found ${agents.length} agent(s): ${agents.map((a) => a.card.name).join(", ")}`);
+  if (config.verbose) {
+    logger.info("discovery_complete", {
+      correlationId,
+      data: {
+        agent_count: agents.length,
+        agents: agents.map((a) => a.card.name),
+      },
+    });
+  }
 
-  // Invoke all agents
-  console.error("Invoking agents...");
-  const results = await invokeAllAgents(agents, diff, config.mcpUrl);
+  // Invoke all agents with metrics
+  const { results, metrics } = await invokeAllAgentsWithMetrics(
+    agents,
+    diff,
+    config.mcpUrl,
+    correlationId,
+  );
 
-  // Report any agent errors
+  // Log any agent errors
   for (const result of results) {
     if (result.error) {
-      console.error(`Agent ${result.agentName} error: ${result.error}`);
+      logger.warn("agent_error", {
+        correlationId,
+        data: { agent: result.agentName, error: result.error },
+      });
     }
   }
 
@@ -151,9 +188,34 @@ async function main() {
     { name: "dep_audit", ok: true },
   ] satisfies ToolRun[];
 
+  // Log completion
+  if (config.verbose) {
+    logger.info("review_complete", {
+      correlationId,
+      durationMs: metrics.total_duration_ms,
+      data: {
+        finding_count: merged.findings.length,
+        agent_latencies: metrics.agent_latencies,
+      },
+    });
+  }
+
   // Output
   if (config.jsonOutput) {
-    console.log(JSON.stringify(merged, null, 2));
+    // Include metrics only with --verbose to preserve determinism
+    if (config.verbose) {
+      const output = {
+        ...merged,
+        metrics: {
+          correlationId,
+          total_duration_ms: metrics.total_duration_ms,
+          agent_latencies: metrics.agent_latencies,
+        },
+      };
+      console.log(JSON.stringify(output, null, 2));
+    } else {
+      console.log(JSON.stringify(merged, null, 2));
+    }
   } else {
     console.log(formatReviewComment(merged));
   }

@@ -1,12 +1,29 @@
 /**
  * Agent discovery - fetch Agent Cards from candidate URLs
+ *
+ * Protocol version compatibility:
+ * - Major version must match (breaking changes)
+ * - Minor version can differ (backward compatible)
  */
 
 import type { AgentCard } from "../shared/types.js";
 
+// Orchestrator's supported protocol version
+export const SUPPORTED_PROTOCOL_VERSION = "1.0";
+
 export interface DiscoveredAgent {
   baseUrl: string;
   card: AgentCard;
+}
+
+/**
+ * Check if agent's protocol version is compatible with orchestrator
+ * Compatible = same major version
+ */
+export function isProtocolCompatible(agentVersion: string): boolean {
+  const supportedMajor = SUPPORTED_PROTOCOL_VERSION.split(".")[0];
+  const agentMajor = agentVersion?.split(".")[0];
+  return supportedMajor === agentMajor;
 }
 
 /**
@@ -30,6 +47,16 @@ export async function discoverAgents(baseUrls: string[]): Promise<DiscoveredAgen
       // Validate required fields
       if (!card.name || !card.endpoint || !card.skills?.length) {
         throw new Error("Invalid agent card: missing required fields");
+      }
+
+      // Validate protocol version compatibility
+      if (!card.protocol_version) {
+        throw new Error("Invalid agent card: missing protocol_version");
+      }
+      if (!isProtocolCompatible(card.protocol_version)) {
+        throw new Error(
+          `Incompatible protocol version: ${card.protocol_version} (supported: ${SUPPORTED_PROTOCOL_VERSION})`,
+        );
       }
 
       return { baseUrl, card };

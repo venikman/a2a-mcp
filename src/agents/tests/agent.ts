@@ -3,9 +3,14 @@
  *
  * Skill: review.tests
  * Port: 9203
+ *
+ * Modes:
+ * - local (default): Uses regex-based pattern matching
+ * - api: Uses OpenRouter LLM for deeper analysis
  */
 
 import type { Finding } from "../../shared/types.js";
+import { analyzeTestsWithLLM, isLLMMode } from "../../shared/llm.js";
 import { BaseAgent, callTool, type ReviewInput } from "../base.js";
 import { analyzeTestCoverage } from "./analyzers.js";
 
@@ -18,8 +23,22 @@ export class TestsAgent extends BaseAgent {
   async analyze(input: ReviewInput): Promise<Finding[]> {
     const findings: Finding[] = [];
 
-    // Analyze diff for missing test coverage
-    findings.push(...analyzeTestCoverage(input.diff));
+    // Choose analysis method based on LLM_MODE
+    if (isLLMMode()) {
+      // Use LLM for deeper analysis
+      try {
+        const llmResponse = await analyzeTestsWithLLM(input.diff);
+        const llmFindings = JSON.parse(llmResponse) as Finding[];
+        findings.push(...llmFindings);
+      } catch (error) {
+        // Fallback to heuristic if LLM fails
+        console.error("[TestsAgent] LLM analysis failed, falling back to heuristic:", error);
+        findings.push(...analyzeTestCoverage(input.diff));
+      }
+    } else {
+      // Analyze diff for missing test coverage (local mode)
+      findings.push(...analyzeTestCoverage(input.diff));
+    }
 
     // Optionally run tests via tool server
     try {

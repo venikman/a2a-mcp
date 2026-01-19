@@ -3,9 +3,14 @@
  *
  * Skill: review.security
  * Port: 9201
+ *
+ * Modes:
+ * - local (default): Uses regex-based pattern matching
+ * - api: Uses OpenRouter LLM for deeper analysis
  */
 
 import type { Finding } from "../../shared/types.js";
+import { analyzeSecurityWithLLM, isLLMMode } from "../../shared/llm.js";
 import { BaseAgent, callTool, type ReviewInput } from "../base.js";
 import { detectHardcodedSecrets } from "./detectors.js";
 
@@ -18,9 +23,24 @@ export class SecurityAgent extends BaseAgent {
   async analyze(input: ReviewInput): Promise<Finding[]> {
     const findings: Finding[] = [];
 
-    // Run heuristic detection on diff
-    const secretFindings = detectHardcodedSecrets(input.diff);
-    findings.push(...secretFindings);
+    // Choose analysis method based on LLM_MODE
+    if (isLLMMode()) {
+      // Use LLM for deeper analysis
+      try {
+        const llmResponse = await analyzeSecurityWithLLM(input.diff);
+        const llmFindings = JSON.parse(llmResponse) as Finding[];
+        findings.push(...llmFindings);
+      } catch (error) {
+        // Fallback to heuristic if LLM fails
+        console.error("[SecurityAgent] LLM analysis failed, falling back to heuristic:", error);
+        const secretFindings = detectHardcodedSecrets(input.diff);
+        findings.push(...secretFindings);
+      }
+    } else {
+      // Run heuristic detection on diff (local mode)
+      const secretFindings = detectHardcodedSecrets(input.diff);
+      findings.push(...secretFindings);
+    }
 
     // Optionally call dep_audit tool if available
     try {

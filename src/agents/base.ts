@@ -11,6 +11,7 @@ import { errorResponse, jsonResponse, jsonRpcErrors, jsonRpcSuccess } from "../s
 import { InvokeParamsSchema, JsonRpcRequestSchema } from "../shared/schemas.js";
 import type {
   AgentCard,
+  AuthType,
   Finding,
   InvokeParams,
   JsonRpcRequest,
@@ -20,12 +21,20 @@ import type {
 } from "../shared/types.js";
 
 // =============================================================================
+// Protocol Constants
+// =============================================================================
+
+export const PROTOCOL_VERSION = "1.0";
+export const DEFAULT_SKILL_VERSION = "1.0";
+
+// =============================================================================
 // Base Agent Abstract Class
 // =============================================================================
 
 export interface ReviewInput {
   diff: string;
   mcp_url: string;
+  additional_context?: Record<string, unknown>;
 }
 
 export abstract class BaseAgent {
@@ -33,6 +42,10 @@ export abstract class BaseAgent {
   abstract readonly skillId: string;
   abstract readonly skillDescription: string;
   abstract readonly port: number;
+
+  // Overridable in subclasses
+  readonly skillVersion: string = DEFAULT_SKILL_VERSION;
+  readonly authType: AuthType = "none";
 
   /**
    * Analyze a diff and return findings
@@ -46,6 +59,7 @@ export abstract class BaseAgent {
   getSkill(): Skill {
     return {
       id: this.skillId,
+      version: this.skillVersion,
       description: this.skillDescription,
       input_schema: {
         type: "object",
@@ -86,9 +100,10 @@ export abstract class BaseAgent {
     return {
       name: this.name,
       version: "0.1",
+      protocol_version: PROTOCOL_VERSION,
       endpoint: `http://127.0.0.1:${this.port}/rpc`,
       skills: [this.getSkill()],
-      auth: { type: "none" },
+      auth: { type: this.authType },
     };
   }
 
@@ -103,11 +118,12 @@ export abstract class BaseAgent {
 
   /**
    * Create and start the HTTP server for this agent
+   * Uses port 0 to get a random available port
    */
   createServer() {
     const agent = this;
     const server = Bun.serve({
-      port: this.port,
+      port: 0, // Let OS assign available port
       hostname: "127.0.0.1",
 
       async fetch(req) {
@@ -117,7 +133,10 @@ export abstract class BaseAgent {
 
         // GET /.well-known/agent-card.json - Agent discovery
         if (method === "GET" && pathname === "/.well-known/agent-card.json") {
-          return jsonResponse(agent.getAgentCard());
+          // Use actual port in agent card
+          const card = agent.getAgentCard();
+          card.endpoint = `http://127.0.0.1:${server.port}/rpc`;
+          return jsonResponse(card);
         }
 
         // POST /rpc - JSON-RPC 2.0 invoke
@@ -134,7 +153,8 @@ export abstract class BaseAgent {
       },
     });
 
-    console.log(`${this.name} listening on http://127.0.0.1:${this.port}`);
+    // Output port in parseable format for start-all.ts
+    console.log(`STARTED:${JSON.stringify({ name: this.name, port: server.port })}`);
     return server;
   }
 
@@ -198,18 +218,29 @@ export abstract class BaseAgent {
 
 const TOOL_TIMEOUT_MS = 3000;
 
+export interface CallToolOptions {
+  authToken?: string;
+}
+
 export async function callTool(
   mcpUrl: string,
   toolName: string,
   args: Record<string, unknown> = {},
+  options: CallToolOptions = {},
 ): Promise<ToolCallResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TOOL_TIMEOUT_MS);
 
+  // Build headers with optional auth
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (options.authToken) {
+    headers["Authorization"] = `Bearer ${options.authToken}`;
+  }
+
   try {
     const response = await fetch(`${mcpUrl}/call`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ tool: toolName, args }),
       signal: controller.signal,
     });
