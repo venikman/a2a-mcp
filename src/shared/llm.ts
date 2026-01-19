@@ -16,13 +16,14 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = process.env.LLM_MODEL ?? "anthropic/claude-3-haiku";
 
 // Timeout for LLM API calls (must be less than agent timeout to allow fallback)
-const DEFAULT_LLM_TIMEOUT_MS = 4000;
+const DEFAULT_LLM_TIMEOUT_MS = 45000;
+const MAX_LLM_TIMEOUT_MS = 45000;
 const LLM_TIMEOUT_MS = (() => {
   const raw = process.env.LLM_TIMEOUT_MS;
   if (raw === undefined) return DEFAULT_LLM_TIMEOUT_MS;
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_LLM_TIMEOUT_MS;
-  return Math.max(1000, parsed);
+  return Math.min(MAX_LLM_TIMEOUT_MS, Math.max(1000, parsed));
 })();
 
 interface OpenRouterMessage {

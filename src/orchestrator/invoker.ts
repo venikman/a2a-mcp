@@ -29,7 +29,14 @@ import {
 import { getAuthHeader } from "../tool-server/permissions.js";
 import type { DiscoveredAgent } from "./discovery.js";
 
-const AGENT_TIMEOUT_MS = 5000;
+const DEFAULT_AGENT_TIMEOUT_MS = 50000;
+const AGENT_TIMEOUT_MS = (() => {
+  const raw = process.env.AGENT_TIMEOUT_MS;
+  if (raw === undefined) return DEFAULT_AGENT_TIMEOUT_MS;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_AGENT_TIMEOUT_MS;
+  return Math.max(1000, parsed);
+})();
 const MAX_RETRIES = 1;
 const MAX_NEGOTIATION_ROUNDS = 2;
 const TOOL_TIMEOUT_MS = 3000;

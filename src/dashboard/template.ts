@@ -554,6 +554,27 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
       flex-direction: column;
       gap: 8px;
     }
+    .agent-section-title {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 8px 0 6px;
+    }
+    .agent-rules {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .agent-rule {
+      font-size: 11px;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      background: var(--bg-tertiary);
+      padding: 4px 8px;
+      border-radius: 999px;
+    }
     .agent-detail-empty {
       font-size: 12px;
       color: var(--text-muted);
@@ -956,6 +977,30 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
     // NOTE: These contain INTENTIONAL vulnerabilities for demo purposes
     const DEMO_SCENARIOS = ${demoScenariosJson};
 
+    const AGENT_RULES = {
+      'security-agent': [
+        'Hardcoded credentials',
+        'SQL injection',
+        'Command injection',
+        'XSS',
+        'Path traversal'
+      ],
+      'style-agent': [
+        'Naming consistency',
+        'Missing types',
+        'Complex conditionals',
+        'Magic values',
+        'Duplication'
+      ],
+      'tests-agent': [
+        'Missing tests',
+        'Edge cases',
+        'Error handling',
+        'Weak assertions',
+        'Skipped tests'
+      ]
+    };
+
     // Handle scenario button clicks
     document.querySelectorAll('.scenario-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1232,6 +1277,24 @@ export function generateDashboard(options: DashboardTemplateOptions): string {
       meta.appendChild(createAgentDetailRow('Duration', durationLabel));
       meta.appendChild(createAgentDetailRow('Findings', String(agent.findingCount)));
       detailBody.appendChild(meta);
+
+      const rules = AGENT_RULES[agent.agent] || [];
+      if (rules.length > 0) {
+        const rulesTitle = document.createElement('div');
+        rulesTitle.className = 'agent-section-title';
+        rulesTitle.textContent = 'Rules';
+        detailBody.appendChild(rulesTitle);
+
+        const rulesWrap = document.createElement('div');
+        rulesWrap.className = 'agent-rules';
+        for (const rule of rules) {
+          const chip = document.createElement('span');
+          chip.className = 'agent-rule';
+          chip.textContent = rule;
+          rulesWrap.appendChild(chip);
+        }
+        detailBody.appendChild(rulesWrap);
+      }
 
       if (agent.error) {
         const error = document.createElement('div');
