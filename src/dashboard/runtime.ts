@@ -1,0 +1,127 @@
+import { discoverAgents } from "../orchestrator/discovery.js";
+import { invokeAllAgentsWithMetrics } from "../orchestrator/invoker.js";
+import { mergeFindings } from "../orchestrator/merger.js";
+import { generateDashboard as renderDashboard } from "./template.js";
+
+export interface ServiceConfig {
+  name: string;
+  url: string;
+}
+
+export interface DashboardServices {
+  toolServer: ServiceConfig;
+  securityAgent: ServiceConfig;
+  styleAgent: ServiceConfig;
+  testsAgent: ServiceConfig;
+}
+
+const DEFAULT_SERVICE_URLS = {
+  toolServer: "http://127.0.0.1:9100",
+  securityAgent: "http://127.0.0.1:9201",
+  styleAgent: "http://127.0.0.1:9202",
+  testsAgent: "http://127.0.0.1:9203",
+};
+
+export function getServicesFromEnv(): DashboardServices {
+  return {
+    toolServer: {
+      name: "Tool Server",
+      url: process.env.TOOL_SERVER_URL || DEFAULT_SERVICE_URLS.toolServer,
+    },
+    securityAgent: {
+      name: "Security Agent",
+      url: process.env.SECURITY_AGENT_URL || DEFAULT_SERVICE_URLS.securityAgent,
+    },
+    styleAgent: {
+      name: "Style Agent",
+      url: process.env.STYLE_AGENT_URL || DEFAULT_SERVICE_URLS.styleAgent,
+    },
+    testsAgent: {
+      name: "Tests Agent",
+      url: process.env.TESTS_AGENT_URL || DEFAULT_SERVICE_URLS.testsAgent,
+    },
+  };
+}
+
+export function getAnalysisMode(): "llm" | "local" {
+  return process.env.LLM_MODE === "api" ? "llm" : "local";
+}
+
+export function extractPort(url: string): string {
+  const match = url.match(/:(\d+)(?:\/|$)/);
+  return match ? match[1] : "????";
+}
+
+export function renderDashboardHtml(services: DashboardServices, dashboardPort: number): string {
+  return renderDashboard({
+    dashboardPort,
+    toolPort: extractPort(services.toolServer.url),
+    securityPort: extractPort(services.securityAgent.url),
+    stylePort: extractPort(services.styleAgent.url),
+    testsPort: extractPort(services.testsAgent.url),
+    analysisMode: getAnalysisMode(),
+  });
+}
+
+export async function checkHealth(url: string): Promise<{ ok: boolean; latencyMs: number }> {
+  const start = Date.now();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+  try {
+    const response = await fetch(`${url}/health`, {
+      signal: controller.signal,
+    });
+    return { ok: response.ok, latencyMs: Date.now() - start };
+  } catch {
+    return { ok: false, latencyMs: Date.now() - start };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function getAllHealth(services: DashboardServices) {
+  const results: Record<string, { ok: boolean; latencyMs: number; url: string }> = {};
+  await Promise.all(
+    Object.entries(services).map(async ([key, service]) => {
+      const health = await checkHealth(service.url);
+      results[key] = { ...health, url: service.url };
+    }),
+  );
+  return results;
+}
+
+export async function runReview(diff: string, services: DashboardServices) {
+  const agentUrls = [services.securityAgent.url, services.styleAgent.url, services.testsAgent.url];
+
+  const agents = await discoverAgents(agentUrls);
+  if (agents.length === 0) {
+    return { error: "No agents available" };
+  }
+
+  const { results, metrics, correlationId } = await invokeAllAgentsWithMetrics(
+    agents,
+    diff,
+    services.toolServer.url,
+  );
+
+  const merged = mergeFindings(results);
+
+  return {
+    correlationId,
+    analysisMode: getAnalysisMode(),
+    findings: merged.findings,
+    bySeverity: merged.bySeverity,
+    metrics: {
+      totalDurationMs: metrics.total_duration_ms,
+      agentLatencies: metrics.agent_latencies,
+    },
+    agentResults: results.map((result) => ({
+      agent: result.agentName,
+      skill: result.skillId,
+      findingCount: result.findings.length,
+      error: result.error,
+      durationMs: result.durationMs,
+    })),
+  };
+}
