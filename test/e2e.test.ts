@@ -41,10 +41,14 @@ beforeAll(async () => {
     { name: "tests-agent", script: "src/agents/tests/index.ts" },
   ];
 
+  // Environment for spawned services - disable auth for base tests
+  const env = { ...process.env, SWARM_AUTH_DISABLED: "true" };
+
   for (const service of services) {
     const proc = spawn({
       cmd: ["bun", "run", `${ROOT}/${service.script}`],
       cwd: ROOT,
+      env,
       stdout: "ignore",
       stderr: "ignore",
     });
@@ -408,6 +412,45 @@ describe("Orchestrator API", () => {
       expect(finding).toHaveProperty("evidence");
       expect(finding).toHaveProperty("recommendation");
       expect(["low", "medium", "high", "critical"]).toContain(finding.severity);
+    }
+  });
+
+  test("invokeAllAgentsWithMetrics returns observability data", async () => {
+    const { discoverAgents } = await import("../src/orchestrator/discovery.js");
+    const { invokeAllAgentsWithMetrics } = await import("../src/orchestrator/invoker.js");
+
+    const diff = await Bun.file(`${ROOT}/test/fixtures/sample.patch`).text();
+    const agents = await discoverAgents([SECURITY_AGENT_URL, STYLE_AGENT_URL, TESTS_AGENT_URL]);
+
+    const { results, metrics, correlationId } = await invokeAllAgentsWithMetrics(
+      agents,
+      diff,
+      TOOL_SERVER_URL,
+    );
+
+    // Verify results
+    expect(results).toHaveLength(3);
+    for (const result of results) {
+      expect(result.error).toBeUndefined();
+      expect(typeof result.durationMs).toBe("number");
+    }
+
+    // Verify correlation ID
+    expect(correlationId).toMatch(/^[0-9a-f-]{36}$/);
+
+    // Verify metrics structure
+    expect(metrics.correlation_id).toBe(correlationId);
+    // total_duration_ms can be 0 for very fast test runs
+    expect(typeof metrics.total_duration_ms).toBe("number");
+    expect(Object.keys(metrics.agent_latencies)).toHaveLength(3);
+
+    // Check agent latencies have expected structure
+    for (const [agentName, latency] of Object.entries(metrics.agent_latencies)) {
+      expect(["security-agent", "style-agent", "tests-agent"]).toContain(agentName);
+      expect(latency.count).toBe(1);
+      // p50/p95 can be 0 for sub-millisecond operations (Math.round)
+      expect(typeof latency.p50_ms).toBe("number");
+      expect(latency.p95_ms).toBeGreaterThanOrEqual(latency.p50_ms);
     }
   });
 });

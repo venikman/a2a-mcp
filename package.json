@@ -9,6 +9,7 @@
     "style-agent": "bun run src/agents/style/index.ts",
     "tests-agent": "bun run src/agents/tests/index.ts",
     "orchestrator": "bun run src/orchestrator/index.ts",
+    "dashboard": "bun run src/dashboard/index.ts",
     "dev": "bun run scripts/start-all.ts",
     "test": "bun test",
     "lint": "biome lint .",
